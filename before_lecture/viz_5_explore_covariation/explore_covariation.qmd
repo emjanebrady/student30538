@@ -249,6 +249,7 @@ alt.Chart(diamonds).mark_boxplot().encode(
 ## Question: How is carat related to price? 2 continuous vars
 
 ```{python}
+display(diamonds)
 df = diamonds
 df['carat_bin'] = pd.qcut(df['carat'], q=20, labels=(np.arange(1, 21, 1)))
 
@@ -293,6 +294,26 @@ alt.Chart(df).mark_point().encode(
 We are now going to transition from making plots to teach **ourselves** to making plots for an audience.
 
 Are penguins getting heavier (`body_mass_g`) over time? 
+```{python}
+display(penguins)
+
+```
+
+```{python}
+alt.Chart(penguins).mark_boxplot().encode(
+    alt.X('body_mass_g:Q'),
+    alt.Y('year:N')
+)
+```
+
+
+```{python}
+alt.Chart(penguins).mark_bar().encode(
+    alt.Y('average(body_mass_g):Q', scale=alt.Scale(zero=False)),
+    alt.X('year:N')
+)
+
+```
 
 Bonus: what is the headline of your plot and what are the sub-messages?
 

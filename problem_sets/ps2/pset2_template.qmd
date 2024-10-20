@@ -1,0 +1,549 @@
+---
+title: "30538 Problem Set 2: Parking Tickets"
+author: Emma Brady
+date: 10/19/2024
+format: 
+  html: 
+    code-overlap: wrap
+execute:
+  eval: true
+  echo: true
+---
+
+1. "This submission is my work alone and complies with the 30538 integrity
+policy." Add your initials to indicate your agreement: EB
+2. "I have uploaded the names of anyone I worked with on the problem set **[here](https://docs.google.com/forms/d/1-zzHx762odGlpVWtgdIC55vqF-j3gqdAp6Pno1rIGK0/edit)**"  EB (1 point)
+3. Late coins used this pset: 1 Late coins left after submission: 2
+4. Knit your `ps2.qmd` to make `ps2.pdf`. 
+    * The PDF should not be more than 25 pages. Use `head()` and re-size figures when appropriate. 
+5. Push  `ps2.qmd` and `ps2.pdf` to your github repo. It is fine to use Github Desktop.
+6. Submit `ps2.pdf` via Gradescope (4 points) 
+7. Tag your submission in Gradescope
+
+```{python}
+import pandas as pd
+import altair as alt
+import numpy as np
+alt.renderers.enable("png")
+import time
+
+import warnings 
+warnings.filterwarnings('ignore')
+```
+
+## Data cleaning continued (15 points)
+1.  
+Read csv file
+```{python}
+df = pd.read_csv('data/parking_tickets_one_percent.csv')
+```
+
+```{python}
+#Function that creates a new dataframe with variables and NA Count
+def na_function(df):
+    """create a data frame with variables and NA count"""
+    count_na = pd.DataFrame({
+        'Variable': df.columns,
+        'NA': df.isna().sum()
+    })
+    return count_na
+
+```
+
+```{python}
+#Testing out the function
+##Creating test dataframe
+test_df = pd.DataFrame({
+    'test1': [None, 1, 1, 1, 1],
+    'test2': [2, None, 2, None, 2],
+    'test3': [3, 3, None, None, None],
+    'test4': [4, 4, 4, 4, 4]
+})
+
+##testing the function on the test dataframe
+
+testing_na = na_function(test_df)
+print(testing_na)
+```
+```{python}
+#Using the function on the parking tickets data frame
+parking_tickets_na = na_function(df)
+print(parking_tickets_na)
+```
+
+Referred to the following webpages:
+https://saturncloud.io/blog/how-to-count-nan-values-in-a-pandas-dataframe-column/
+https://www.geeksforgeeks.org/different-ways-to-create-pandas-dataframe/
+https://stackoverflow.com/questions/45579525/returning-a-dataframe-in-python-function
+
+2.      
+notice_level, hearing_disposition, and zipcode are missing more often than others.
+
+Notice level is missing often because if the field is blank no notice was sent. All the NAs indicate that no notice was sent.
+
+While hearing disposition is not defined in the data dictionary, it may refer to whether there was a hearing disposition for the ticket, and the NAs may indicate that there wasn't.
+
+Zipcode refers to the ZIPcode associated with the vehicle registration, and if the ticket is associated to a lack of vehicle registration than there will be an NA there.
+
+3.  
+```{python}
+##Create a function that gives the corresponding value in the 'violation_code' column 
+##for any value in the 'violation_description' that contains the words "city sticker"
+def city_sticker_function(df):
+    sticker_violation = df[df['violation_description'].str.contains('NO CITY STICKER')]
+    return sticker_violation['violation_code']
+
+city_sticker_violation_codes = city_sticker_function(df).unique()
+print(city_sticker_violation_codes)
+```
+
+```{python}
+##check that each code pulled is for no city sticker
+print(df['violation_description'].loc[df['violation_code'] == '0964125'].unique())
+print(df['violation_description'].loc[df['violation_code'] == '0976170'].unique())
+print(df['violation_description'].loc[df['violation_code'] == '0964125B'].unique())
+print(df['violation_description'].loc[df['violation_code'] == '0964125C'].unique())
+```
+
+The original violation code was 0964125 and the new violation code is 0976170. Violation codes also included 0964125B for no city sticker on vehicles under/equal to 16,000 lbs and 0964125C for no city sticker on vehicles over 16,000 lbs.
+
+4. 
+```{python}
+print(df['fine_level1_amount'].loc[df['violation_code'] == '0964125'].unique())
+```
+
+The cost of an initial offense for violation code 0964125 is $120
+```{python}
+print(df['fine_level1_amount'].loc[df['violation_code'] == '0976170'].unique())
+```
+
+The cost of an initial offense for violation code 0976170 is $120
+```{python}
+print(df['fine_level1_amount'].loc[df['violation_code'] == '0964125B'].unique())
+```
+
+The cost of an initial offense for violation code 0964125B is $200.
+
+## Revenue increase from "missing city sticker" tickets (20 Points)
+
+1.
+
+```{python}
+#Create a new value for violation codes which combines the two city sticker violation codes.
+df['violation_code'] = df['violation_code'].replace(
+    ['0964125', '0976170', '0964125B'], '1111111')
+```
+
+```{python}
+##Collapse the data to capture the number of missing city sticker tickets by month.
+df['issue_date'] = pd.to_datetime(df['issue_date'])
+filtered_df = df[df['violation_code'] == '1111111']
+
+filtered_df['month'] = filtered_df['issue_date'].dt.to_period('M')
+stickers_by_month = filtered_df.groupby('month')['violation_code'].count().reset_index()
+stickers_by_month['month'] = stickers_by_month['month'].astype(str)
+
+```
+
+```{python}
+##Use Altair to plot the number of tickets over time
+sticker_violations_by_month_chart = alt.Chart(stickers_by_month).mark_line().encode(
+    alt.X('month:O', title='Issue Month'),
+    alt.Y('violation_code:Q', title='City Sticker Violations')
+)
+sticker_violations_by_month_chart
+```
+
+Referred to the following page: https://www.statology.org/pandas-group-by-month/
+
+2. 
+
+
+3. 
+
+```{python}
+violations_2011 = df[(df['violation_code'] == '1111111') & (df['issue_date'].dt.year == 2011)]
+violations_2011.shape[0]
+```
+
+In this 1% sample of the data, there were 1935 sticker violation tickets in 2011, implying that there were roughly 193,500 total sticker violations. With an $80 increase in the ticket charge, the city would raise revenue by $15,480,000.
+
+4.
+```{python}
+#calculate total number of no city sticker violations in 2011
+violations_2011 = df[(df['violation_code'] == '1111111') & (df['issue_date'].dt.year == 2011)]
+violations_2011.shape[0]
+```
+```{python}
+#calculate paid number of no city sticker violations in 2011
+violations_2011_unpaid = df[
+    (df['violation_code'] == '1111111') & (df['issue_date'].dt.year == 2011) & (df['ticket_queue'] == 'Paid')]
+violations_2011_unpaid.shape[0]
+```
+
+There were 1935 no sticker violation tickets issued in this sample set in 2011 and 1044 were paid, so there waas a repayment rate of 54%.
+
+```{python}
+#calculate total number of no city sticker violations in 2012
+violations_2012 = df[(df['violation_code'] == '1111111') & (df['issue_date'].dt.year == 2012)]
+violations_2012.shape[0]
+```
+```{python}
+#calculate paid number of no city sticker violations in 2012
+violations_2012_unpaid = df[
+    (df['violation_code'] == '1111111') & (df['issue_date'].dt.year == 2012) & (df['ticket_queue'] == 'Paid')]
+violations_2012_unpaid.shape[0]
+```
+
+There were 2192 no sticker violation tickets issued in this sample set in 2012 and 1057 were paid, so there was a repayment rate decreased to 48%.
+
+If the number of tickets issues was unchanged after the price increase and we only calculated changes based on the new and old repayment rates, the revenue in 2011 would be:
+193,500 x 120 = 23,220,000
+23,220,00 x 54% repayment rate = $12,538,800
+
+And assuming the same number of tickets are issued in 2012, with the only changes being the price increasing and the repayment rate decreasing, the revenue in 2012 would be:
+193,500 x 200 = 38,700,000
+38,700,000 x 48% repayment rate = $18,576,000
+
+The increase in revenue from 2011 to 2012 with raising the ticket cost to $200 and the repayment rate decreasing 4 percentage point would only be $6,037,200. 
+
+5.
+
+```{python}
+##Create a new column to find rate of paid ticket
+filtered_df['paid'] = filtered_df['ticket_queue'].apply(lambda x: 1 if x == 'Paid' else 0)
+
+##group by year
+yearly_df = filtered_df.groupby(filtered_df['issue_date'].dt.year).agg(
+    repayment_rate=('paid', 'mean')).reset_index()
+print(yearly_df)
+```
+
+```{python}
+lines = alt.Chart(yearly_df).mark_line().encode(
+    alt.X('issue_date:N', title='Issue Year'),
+    alt.Y('repayment_rate:Q', title='Repayment Rate')
+)
+
+rules = alt.Chart(pd.DataFrame({
+    'Date': [2012]})
+).mark_rule(color='red').encode(
+    alt.X('Date:O')
+)
+
+(lines + rules)
+```
+
+While the repayment rate was already on downward trajectory, with the introduction of the new policy in 2012 the repayment rate continued to delcine from approximately 52% in 2011 all the way down to approximately 20% in 2018.
+
+6.
+```{python}
+##create a new column to calculate repayment rate
+df['paid'] = df['ticket_queue'].apply(lambda x: 1 if x == 'Paid' else 0)
+```
+```{python}
+##subset data to just pre-policy implemenation yeat
+df_before_2012 = df[df['issue_date'].dt.year < 2012]
+```
+```{python}
+##find the violation codes that are issued most often
+df_before_2012['violation_code'].value_counts().head(10)
+```
+
+
+```{python}
+##calculating repayment rate for violation code 0976160F
+rate_1_test = df_before_2012[df_before_2012['violation_code'] == '0976160F']
+print(rate_1_test['paid'].mean())
+```
+
+```{python}
+##calculating total number of paid tickets for violation code 0976160F
+rate_1_test['paid'].sum()
+```
+
+Number of tickets given for violation code 0976160F: 21906
+
+Repayment rate for violation code 0976160F: 61%
+
+Number of tickets paid: 13316
+
+```{python}
+rate_2_test = df_before_2012[df_before_2012['violation_code'] == '0964190']
+print(rate_2_test['paid'].mean())
+```
+
+```{python}
+rate_2_test['paid'].sum()
+```
+
+Number of tickets given for violation code 0964190: 18117
+
+Repayment rate for violation code 0976160F: 80%
+
+Number of tickets paid: 14580
+
+```{python}
+##filter the df to only contain the top 10 most frequently given tickets
+top_10_tickets = [
+    '0976160F', '0964190', '0964040B', '0964090E', '1111111', '0964150B', '0976160A', '0964080A', '0964190A', '0964080B']
+
+most_frequent_tickets_df = df_before_2012[
+    df_before_2012['violation_code'].isin(top_10_tickets)]
+
+##group by 'violation_code' and sum the 'paid' column to get the total count of paid tickets
+grouped_by_code_df = most_frequent_tickets_df.groupby(
+    'violation_code', as_index=False)['paid'].sum()
+```
+
+```{python}
+##Create the bar chart in Altair
+q_2_6_chart = alt.Chart(grouped_by_code_df).mark_bar().encode(
+    x=alt.X('violation_code:N', title='Violation Code'),
+    y=alt.Y('paid:Q', title='Total Paid Tickets'),
+    tooltip=['violation_code', 'paid']
+).properties(
+    title="Total Paid Tickets for Each Violation Code"
+)
+q_2_6_chart
+```
+
+Based on the number of paid tickets by violation types before 2012, if the city raised the price for each ticket by the same amount (say by $80 as it was raised for the no city sticker violation) and wanted to raise the highest number of revenue, by looking at this chart we can see that they should increase the price of violation codes 0964190, 0976160F, and 0964040B.
+
+
+## Headlines and sub-messages (20 points)
+
+1.
+```{python}
+##create new dataframe grouped by violation description and aggregated by other factors
+q_3_1_df = df.groupby('violation_description').agg(
+    paid_tickets=('paid', 'mean'),
+    avg_level1_fine=('fine_level1_amount', 'mean'),
+    ticket_count=('ticket_number', 'count')
+).reset_index()
+
+##sort dataframe by ticket count
+q_3_1_df = q_3_1_df.sort_values(by=['ticket_count'], ascending=False)
+
+```
+```{python}
+print(q_3_1_df.head(5))
+```
+
+Referred to the following pages:
+https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.aggregate.html
+https://www.geeksforgeeks.org/how-to-sort-pandas-dataframe/
+
+2. 
+```{python}
+#filter the dataframe to only contain violations that appear at least 100 times
+at_least_100_df = q_3_1_df[q_3_1_df['ticket_count'] >= 100]
+```
+
+```{python}
+##make a scatterplot in Altair
+chart_1 = alt.Chart(q_3_1_df).mark_point(clip=True).encode(
+    alt.X('paid_tickets', title='Fraction of Tickets that Are Paid'),
+    alt.Y('avg_level1_fine', title='Average Level 1 Fine').scale(domain=(0, 275))
+)
+
+chart_1
+```
+
+The main message one would take away from this plot is that there looks to be a normal distrubtion around the fraction of tickets that are paid in relation to the fine amount. There is slightly more crowding of the data between tickets are are paid 50-70% of the time and have a fine level of $25-$75.
+
+```{python}
+chart_2 = alt.Chart(q_3_1_df).mark_point(clip=True).encode(
+    alt.X('paid_tickets', title='Fraction of Tickets that Are Paid'),
+    alt.Y('avg_level1_fine', title='Average Level 1 Fine').scale(domain=(0, 275)),
+    alt.Size('ticket_count:Q', title='Ticket Count')
+)
+
+chart_2
+```
+
+In addition to what we gathered from the last chart, in this chart we can also see that there is the highest count of tickets given out that are approximately $50-$60 and they are paid back around 50%-80% of the time.
+
+```{python}
+chart_3 = alt.Chart(q_3_1_df).mark_circle(clip=True).encode(
+    alt.X('paid_tickets:Q', bin=alt.BinParams(maxbins=20), 
+    title='Fraction of Tickets that Are Paid:Q'),
+    alt.Y('avg_level1_fine', bin=alt.BinParams(maxbins=20), 
+    title='Average Level 1 Fine').scale(domain=(0, 300)),
+    alt.Size('count()')
+)
+
+chart_3
+```
+
+This chart simplifies the other charts and brings the eye to notice that tickets are most often paid back when they are $25-$75. It deemphasizes the fines that are $175 or more, as it appears in this chart that they are rarely given out.
+
+
+Referred to the following:
+https://altair-viz.github.io/user_guide/customization.html
+
+3. I am going to bring the City Clerk the third chart because it simplifies the data the most and brings your attention to the fact that tickets are most often paid when they are $25-$75.
+
+## Understanding the structure of the data and summarizing it (Lecture 5, 20 Points)
+
+1. 
+```{python}
+q_4_df = df.groupby('violation_description').agg(
+    avg_level1_fine=('fine_level1_amount', 'mean'),
+    avg_level2_fine=('fine_level2_amount', 'mean'),
+    ticket_count=('ticket_number', 'count')
+).reset_index()
+
+##create a new column that shows if fines double in price if unpaid
+q_4_df['does_it_double'] = q_4_df['avg_level2_fine'] / q_4_df['avg_level1_fine']
+
+```
+
+```{python}
+##find the rows where the violaiton code does not double
+print(q_4_df[(q_4_df['does_it_double'] < 2) & (q_4_df['ticket_count'] > 100)])
+```
+
+The following violations have at least 100 citations and do not double. Each increases by the following:
+
+Violation | Increase Amount
+--------- | ---------------
+Block access/alley/driveway/firelane | 1.88
+Disabled parking zone | 1.65
+No city sticker vehicle over 16,000 lbs. | 1.91
+Obstructed or improperly tinted windows | 1.44
+Park or block alley | 1.73
+Park/stand on bicycle path | 1.94
+Smoked/tinted windows parked/standing | 1.39
+
+2.
+
+***Notice Level***
+
+```{mermaid}
+flowchart LR
+A[VIOL] --> B(Could be paid or unpaid)
+C[DETR] --> B
+D[SIEZ] --> E(Ticket not paid yet)
+F[FINL] --> E
+G[DLS] --> E
+```
+
+**VIOL**: Notice of violation is sent
+
+**SIEZ**: The vehicle is now on the city's boot list
+
+**DETR**: hearing officer found vehicle owner liable for the citation
+
+**FINL**: unpaid ticket was sent to collections
+
+**DLS**: city intends to seek a license suspension
+
+***Ticket Queue***
+```{mermaid}
+flowchart LR
+A[PAID] --> B[No more action needed]
+C[DISMESSED] --> B
+D[BANKRUPTCY] --> B
+E[HEARING REQ] --> F[Waiting for outcome to see if still need to pay]
+G[COURT] --> F
+H[NOTICE] --> I[Still need to pay ticket]
+J[DEFINE] --> I
+```
+**PAID**: The ticket was paid
+
+**DISMISSED**: The ticket was dismissed
+
+**HEARING REQ**: The ticket was contested and awaiting a hearing at the time the data was pulled
+
+**NOTICE**: The ticket was not yet paid and the city sent a notice to the address on file for that vehicle
+
+**COURT**: The ticket is involved in some sort of court case, not including bankruptcy
+
+**BANKRUPTCY**: The ticket was unpaid and included as a debt in a consumer bankruptcy case
+
+**DEFINE**: The city cannot identify the vehicle owner and collect on a debt
+
+3.
+```{python}
+##original chart with messy legend
+Final_chart = alt.Chart(q_3_1_df).mark_point(clip=True).encode(
+    alt.X('paid_tickets', title='Fraction of Tickets that Are Paid'),
+    alt.Y('avg_level1_fine', title='Average Level 1 Fine').scale(domain=(0, 275)),
+    alt.Color('violation_description:N', title='Violation Description')
+)
+
+Final_chart
+```
+
+```{python}
+##find the 'ticket_count' cutoff for the 10 most common
+print(q_3_1_df.sort_values(by=['ticket_count'], ascending=False).head(11))
+
+##dfine the function to categorize based on ticket_count
+def categorize_violation(row):
+    if row['ticket_count'] > 10000:
+        return row['violation_description']
+    else:
+        return 'OTHER'
+
+##apply the function to create the '10_most_common' column
+q_3_1_df['10_most_common'] = q_3_1_df.apply(categorize_violation, axis=1)
+```
+
+```{python}
+##second chart with ten most commonly used violation descriptions
+Final_chart_part_2 = alt.Chart(q_3_1_df).mark_point(clip=True).encode(
+    alt.X('paid_tickets', title='Fraction of Tickets that Are Paid'),
+    alt.Y('avg_level1_fine', title='Average Level 1 Fine').scale(domain=(0, 275)),
+    alt.Color('10_most_common:N', title='Violation Description')
+)
+
+Final_chart_part_2
+```
+
+```{python}
+#organize into categories
+def categorize_violation_description(row):
+    description = row['violation_description']
+    
+    if 'EXPIRED' in description:
+        return 'EXPIRED'
+    elif 'PLATE' in description:
+        return 'LICENSE PLATE'
+    elif 'SNOW' in description:
+        return 'SNOW'
+    elif 'SAFETY BELT' in description:
+        return 'SEAT BELT'
+    elif any(keyword in description for keyword in ['CITY STICKER', 'PERMIT', 'PLACARD', 'IDENTIFICATION']):
+        return 'CITY STICKER OR PERMIT'
+    elif any(keyword in description for keyword in ['TRUCK', 'DIESEL']):
+        return 'TRUCK'
+    elif any(keyword in description for keyword in ['HAZARDOUS', 'UNSAFE']):
+        return 'HAZARDOUS'
+    elif any(keyword in description for keyword in ['LAMP', 'REFLECTORS', 'LAMPS', 'LIGHTS', 'WINDOWS', 'BRAKES', 'EXCESS', 'REAR', 'LOAD', 'HORN', 'SIREN', 'ALARM' 'IMPROPER']):
+        return 'CAR NEEDS REPAIR'
+    elif any(keyword in description for keyword in ['PARK', 'OBSTRUCT', 'PARKING', 'ENTRANCE', 'BLOCK', 'WITHIN', 'CURB', 'UNDER', 'OUTSIDE', 'STREET', 'SPECIAL', 'METER']):
+        return 'PARKING'
+    else:
+        return 'OTHER'
+# Apply the function to create the 'categories' column
+q_3_1_df['categories'] = q_3_1_df.apply(categorize_violation_description, axis=1)
+
+```
+
+```{python}
+##second chart with ten most commonly used violation descriptions
+Final_chart_really = alt.Chart(q_3_1_df).mark_point(clip=True).encode(
+    alt.X('paid_tickets', title='Fraction of Tickets that Are Paid'),
+    alt.Y('avg_level1_fine', title='Average Level 1 Fine').scale(domain=(0, 275)),
+    alt.Color('categories:N', title='Violation Description')
+)
+
+Final_chart_really
+```
+
+## Extra Credit (max 5 points)
+
+1. 
+2. 
